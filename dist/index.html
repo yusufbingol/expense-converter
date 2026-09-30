@@ -6,8 +6,8 @@
     <meta name="description" content="Convert Enpara credit card statements into Money Manager TSV imports." />
     <link rel="icon" type="image/svg+xml" href="/assets/favicon-BMYX05Hd.svg" />
     <title>Enpara → Money Manager</title>
-    <script type="module" crossorigin src="/assets/index-Dx8TkLY9.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DiMOc3XT.css">
+    <script type="module" crossorigin src="/assets/index-DqHEqBhq.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DzENrpSJ.css">
   </head>
   <body>
     <main class="app-shell">
@@ -18,7 +18,8 @@
         </a>
         <nav aria-label="Main navigation">
           <button class="nav-button active" data-view="import" type="button"><span>01</span> Import statement</button>
-          <button class="nav-button" data-view="merchants" type="button"><span>02</span> Saved merchants <b id="merchant-count">0</b></button>
+          <button class="nav-button" data-view="manual" type="button"><span>02</span> Manual entry</button>
+          <button class="nav-button" data-view="merchants" type="button"><span>03</span> Saved merchants <b id="merchant-count">0</b></button>
         </nav>
         <div class="privacy-note">
           <span class="lock">⌁</span>
@@ -56,6 +57,11 @@
             <p class="parser-note">Imports positive, non-installment purchase rows only. Payments, refunds and statement totals are left out.</p>
           </section>
 
+          <section id="import-session-panel" class="import-session-panel hidden" aria-live="polite">
+            <div><span class="section-kicker">Current session</span><strong id="import-session-title">Statement ready</strong><p id="import-session-copy"></p></div>
+            <div class="session-actions"><button id="resume-import" class="button primary" type="button">Resume classification</button><button id="review-import" class="button ghost" type="button">Review eligible</button></div>
+          </section>
+
           <section id="processing-panel" class="processing-panel hidden" aria-live="polite">
             <div class="processing-orb"></div>
             <div><strong>Reading your statement…</strong><p id="processing-message">Extracting transaction rows locally.</p></div>
@@ -76,23 +82,23 @@
               <form id="classification-form">
                 <div class="form-grid">
                   <label>Friendly name <span class="optional-label">optional</span><input id="merchant-name" maxlength="120" autocomplete="off" placeholder="Defaults to the original description" /></label>
-                  <label>Category<input id="merchant-category" required maxlength="120" list="category-options" autocomplete="off" placeholder="e.g. Entertainment" /></label>
+                  <label>Category<select id="merchant-category" required><option value="">Choose a category</option></select></label>
                   <datalist id="category-options"></datalist>
                 </div>
-                <div class="form-actions"><div class="classification-secondary-actions"><button id="cancel-import" class="button ghost" type="button">Start over</button><button id="skip-merchant" class="button skip" type="button">Skip this merchant</button></div><button class="button primary" type="submit">Save &amp; continue</button></div>
+                <div class="form-actions"><div class="classification-secondary-actions"><button id="cancel-import" class="button ghost" type="button">Start over</button><button id="skip-merchant" class="button skip" type="button">Skip this merchant</button><button id="review-from-classification" class="button ghost" type="button">Review eligible</button></div><button class="button primary" type="submit">Save &amp; continue</button></div>
               </form>
             </div>
           </section>
 
           <section id="review-panel" class="hidden" aria-labelledby="review-title">
             <div class="stage-header">
-              <div><span class="section-kicker">Step 3</span><h2 id="review-title">Ready to export</h2><p>Only the transactions below will be written to <code>import.tsv</code>.</p></div>
-              <button id="export-button" class="button primary export" type="button">↓ Download import.tsv</button>
+              <div><span class="section-kicker">Step 3</span><h2 id="review-title">Ready to export</h2><p id="review-copy">Only the transactions below will be written to <code>import.tsv</code>.</p></div>
+              <div class="review-actions"><button id="resume-from-review" class="button ghost" type="button">Resume classification</button><button id="export-button" class="button primary export" type="button">↓ Download import.tsv</button></div>
             </div>
             <div id="summary-cards" class="summary-cards"></div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Date</th><th>Description</th><th>Name / Note</th><th>Category</th><th class="amount">Amount</th></tr></thead>
+                <thead><tr><th>Date</th><th>Description</th><th>Name / Note</th><th>Category</th><th class="amount">Amount</th><th></th></tr></thead>
                 <tbody id="review-body"></tbody>
               </table>
             </div>
@@ -105,6 +111,29 @@
           </section>
         </section>
 
+        <section id="manual-view" class="view" aria-labelledby="manual-title">
+          <div class="view-heading merchants-heading"><div><h1 id="manual-title">Manual entry</h1><p>Add expenses that should use the same Money Manager import format.</p></div></div>
+          <section class="manual-entry-layout">
+            <form id="manual-form" class="manual-form" novalidate>
+              <div class="manual-form-heading"><span class="section-kicker">New transaction</span><strong id="manual-form-title">Add a manual expense</strong></div>
+              <div class="manual-form-grid">
+                <label>Date<input id="manual-date" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" required /></label>
+                <label>Category<select id="manual-category" required><option value="">Choose a category</option></select></label>
+                <label>Note<input id="manual-note" maxlength="160" placeholder="e.g. Dinner" required /></label>
+                <label>Amount<input id="manual-amount" inputmode="decimal" type="text" placeholder="0,00" required /></label>
+                <label class="manual-description-field">Description<input id="manual-description" maxlength="240" placeholder="Original transaction description" required /></label>
+              </div>
+              <p id="manual-error" class="manual-error hidden" role="alert"></p>
+              <div class="form-actions"><button id="cancel-manual-edit" class="button ghost hidden" type="button">Cancel edit</button><button id="save-manual" class="button primary" type="submit">Add transaction</button></div>
+            </form>
+            <section class="manual-list-section" aria-labelledby="manual-list-title">
+              <div class="stage-header"><div><span class="section-kicker">Current entries</span><h2 id="manual-list-title">Manual transactions</h2><p id="manual-summary">Add an expense to begin.</p></div><button id="export-manual" class="button primary hidden" type="button">↓ Download import.tsv</button></div>
+              <div id="manual-empty" class="merchant-empty"><span>+</span><strong>No manual transactions yet</strong><p>Added entries remain available while this page is open.</p></div>
+              <div id="manual-table-wrap" class="table-wrap hidden"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th>Description</th><th class="amount">Amount</th><th></th></tr></thead><tbody id="manual-body"></tbody></table></div>
+            </section>
+          </section>
+        </section>
+
         <section id="merchants-view" class="view" aria-labelledby="merchants-title">
           <div class="view-heading merchants-heading"><div><h1 id="merchants-title">Saved merchants</h1><p>Descriptions stay exact; edit the friendly name or category whenever you need.</p></div></div>
           <section class="merchant-toolbar"><input id="merchant-search" type="search" placeholder="Search descriptions, names or categories" aria-label="Search saved merchants" /><button id="clear-all" class="button danger hidden" type="button">Delete all</button></section>
@@ -114,6 +143,19 @@
       </section>
     </main>
     <template id="merchant-row-template"><tr><td class="description-cell"></td><td><input class="mapping-name" maxlength="120" /></td><td><input class="mapping-category" maxlength="120" list="category-options" /></td><td class="row-actions"><button class="save-mapping" type="button">Save</button><button class="delete-mapping" type="button" aria-label="Delete merchant mapping">×</button></td></tr></template>
+    <dialog id="review-edit-dialog" class="review-edit-dialog" aria-labelledby="review-edit-title">
+      <form id="review-edit-form" method="dialog">
+        <div class="dialog-heading"><div><span class="section-kicker">Current import only</span><h2 id="review-edit-title">Edit transaction</h2></div><button id="close-review-edit" class="dialog-close" type="button" aria-label="Close">×</button></div>
+        <div class="manual-form-grid">
+          <label>Date<input id="review-edit-date" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" required /></label>
+          <label>Category<select id="review-edit-category" required><option value="">Choose a category</option></select></label>
+          <label>Note<input id="review-edit-note" maxlength="160" /></label>
+          <label>Amount<input id="review-edit-amount" inputmode="decimal" type="text" placeholder="0,00" required /></label>
+        </div>
+        <p id="review-edit-error" class="manual-error hidden" role="alert"></p>
+        <div class="form-actions"><button id="cancel-review-edit" class="button ghost" type="button">Cancel</button><button class="button primary" type="submit">Save changes</button></div>
+      </form>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </body>
 </html>
