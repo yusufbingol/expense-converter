@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Convert Enpara credit card statements into Money Manager TSV imports." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Enpara → Money Manager</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#import" aria-label="Enpara to Money Manager home">
+          <span class="brand-mark">₺</span>
+          <span>Enpara <i>→</i> Money</span>
+        </a>
+        <nav aria-label="Main navigation">
+          <button class="nav-button active" data-view="import" type="button"><span>01</span> Import statement</button>
+          <button class="nav-button" data-view="merchants" type="button"><span>02</span> Saved merchants <b id="merchant-count">0</b></button>
+        </nav>
+        <div class="privacy-note">
+          <span class="lock">⌁</span>
+          <div><strong>On this device</strong><br />Your PDF and merchant memory never leave this browser.</div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div class="eyebrow">Personal finance utility</div>
+          <div class="local-status"><span></span> Local only</div>
+        </header>
+
+        <section id="import-view" class="view active" aria-labelledby="import-title">
+          <div class="view-heading">
+            <div>
+              <h1 id="import-title">Import a statement</h1>
+              <p>Turn supported Enpara card purchases into a Money Manager import.</p>
+            </div>
+            <div class="stepper" aria-label="Import progress">
+              <span class="step current">1 <em>Statement</em></span>
+              <i></i><span class="step">2 <em>Classify</em></span>
+              <i></i><span class="step">3 <em>Review</em></span>
+            </div>
+          </div>
+
+          <section id="upload-panel" class="upload-panel">
+            <label id="drop-zone" class="drop-zone" for="pdf-input">
+              <input id="pdf-input" type="file" accept="application/pdf,.pdf" />
+              <span class="upload-icon">↥</span>
+              <strong>Choose your Enpara card statement</strong>
+              <small>Drop a PDF here or browse your files</small>
+              <span class="file-type">PDF only · processed in your browser</span>
+            </label>
+            <p class="parser-note">Imports positive, non-installment purchase rows only. Payments, refunds and statement totals are left out.</p>
+          </section>
+
+          <section id="processing-panel" class="processing-panel hidden" aria-live="polite">
+            <div class="processing-orb"></div>
+            <div><strong>Reading your statement…</strong><p id="processing-message">Extracting transaction rows locally.</p></div>
+          </section>
+
+          <section id="classification-panel" class="hidden" aria-labelledby="classification-title">
+            <div class="stage-header">
+              <div><span class="section-kicker">Step 2</span><h2 id="classification-title">Classify new merchants</h2><p id="classification-copy"></p></div>
+              <div class="count-chip"><span id="unknown-progress">0 / 0</span> to classify</div>
+            </div>
+            <div class="classification-card">
+              <div class="description-label">Original description</div>
+              <div id="unknown-description" class="unknown-description"></div>
+              <section class="classification-transactions" aria-labelledby="transaction-details-title">
+                <div id="transaction-details-title" class="description-label">Transactions in this import</div>
+                <div id="classification-transactions" class="classification-transaction-list"></div>
+              </section>
+              <form id="classification-form">
+                <div class="form-grid">
+                  <label>Friendly name <span class="optional-label">optional</span><input id="merchant-name" maxlength="120" autocomplete="off" placeholder="Defaults to the original description" /></label>
+                  <label>Category<input id="merchant-category" required maxlength="120" list="category-options" autocomplete="off" placeholder="e.g. Entertainment" /></label>
+                  <datalist id="category-options"></datalist>
+                </div>
+                <div class="form-actions"><div class="classification-secondary-actions"><button id="cancel-import" class="button ghost" type="button">Start over</button><button id="skip-merchant" class="button skip" type="button">Skip this merchant</button></div><button class="button primary" type="submit">Save &amp; continue</button></div>
+              </form>
+            </div>
+          </section>
+
+          <section id="review-panel" class="hidden" aria-labelledby="review-title">
+            <div class="stage-header">
+              <div><span class="section-kicker">Step 3</span><h2 id="review-title">Ready to export</h2><p>Only the transactions below will be written to <code>import.tsv</code>.</p></div>
+              <button id="export-button" class="button primary export" type="button">↓ Download import.tsv</button>
+            </div>
+            <div id="summary-cards" class="summary-cards"></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Date</th><th>Description</th><th>Name / Note</th><th>Category</th><th class="amount">Amount</th></tr></thead>
+                <tbody id="review-body"></tbody>
+              </table>
+            </div>
+            <div class="review-footer"><button id="new-import" class="button ghost" type="button">Import another statement</button><span>Export format: tab-separated UTF-8</span></div>
+          </section>
+
+          <section id="empty-state" class="empty-state">
+            <div class="empty-ledger"><span></span><span></span><span></span></div>
+            <div><strong>Quick and repeatable</strong><p>Merchant names and categories you save are remembered automatically for your next statement.</p></div>
+          </section>
+        </section>
+
+        <section id="merchants-view" class="view" aria-labelledby="merchants-title">
+          <div class="view-heading merchants-heading"><div><h1 id="merchants-title">Saved merchants</h1><p>Descriptions stay exact; edit the friendly name or category whenever you need.</p></div></div>
+          <section class="merchant-toolbar"><input id="merchant-search" type="search" placeholder="Search descriptions, names or categories" aria-label="Search saved merchants" /><button id="clear-all" class="button danger hidden" type="button">Delete all</button></section>
+          <div id="merchants-empty" class="merchant-empty"><span>⌁</span><strong>No merchant mappings yet</strong><p>They will appear here after you classify transactions from a statement.</p></div>
+          <div id="merchant-table-wrap" class="table-wrap hidden"><table><thead><tr><th>Description</th><th>Friendly name</th><th>Category</th><th></th></tr></thead><tbody id="merchant-body"></tbody></table></div>
+        </section>
+      </section>
+    </main>
+    <template id="merchant-row-template"><tr><td class="description-cell"></td><td><input class="mapping-name" maxlength="120" /></td><td><input class="mapping-category" maxlength="120" list="category-options" /></td><td class="row-actions"><button class="save-mapping" type="button">Save</button><button class="delete-mapping" type="button" aria-label="Delete merchant mapping">×</button></td></tr></template>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
