@@ -300,9 +300,23 @@ function renderMerchantTable() {
   els.merchantBody.replaceChildren(...mappings.map(mapping => { const row=$('#merchant-row-template').content.firstElementChild.cloneNode(true); row.dataset.description=mapping.description; row.querySelector('.description-cell').textContent=mapping.description; row.querySelector('.mapping-name').value=mapping.name; row.querySelector('.mapping-category').value=mapping.category; return row; }));
 }
 function resetImport() { state.parsed=[];state.included=[];state.skippedDescriptions=new Set();state.sessionMappings=new Map();state.selectedTransactionId=null;state.unknown=[];state.unknownIndex=0;state.importActive=false;els.input.value=''; showImportLanding(); }
+// The manual date field is a native date picker (YYYY-MM-DD); exports stay DD/MM/YYYY.
+function todayIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+function isoToExportDate(value) {
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
+}
+function exportToIsoDate(value) {
+  const match = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+}
 function resetManualForm() {
   state.editingManualId = null;
   els.manualForm.reset();
+  els.manualDate.value = todayIsoDate();
   els.manualError.classList.add('hidden');
   els.manualFormTitle.textContent = 'Add a manual expense';
   els.saveManual.textContent = 'Add transaction';
@@ -327,11 +341,11 @@ function renderManualEntries() {
 function editManualEntry(id) {
   const entry = state.manualEntries.find(item => item.id === id); if (!entry) return;
   state.editingManualId = id;
-  els.manualDate.value = entry.date; els.manualCategory.value = entry.category; els.manualNote.value = entry.note; els.manualAmount.value = formatUserAmount(entry.amount); els.manualDescription.value = entry.description;
+  els.manualDate.value = exportToIsoDate(entry.date); els.manualCategory.value = entry.category; els.manualNote.value = entry.note; els.manualAmount.value = formatUserAmount(entry.amount); els.manualDescription.value = entry.description;
   els.manualError.classList.add('hidden'); els.manualFormTitle.textContent = 'Edit manual expense'; els.saveManual.textContent = 'Save changes'; els.cancelManualEdit.classList.remove('hidden'); els.manualDate.focus();
 }
 function saveManualEntry() {
-  const result = validateManualTransaction({ date: els.manualDate.value, category: els.manualCategory.value, note: els.manualNote.value, amount: els.manualAmount.value, description: els.manualDescription.value });
+  const result = validateManualTransaction({ date: isoToExportDate(els.manualDate.value), category: els.manualCategory.value, note: els.manualNote.value, amount: els.manualAmount.value, description: els.manualDescription.value });
   if (result.error) { els.manualError.textContent = result.error; els.manualError.classList.remove('hidden'); return; }
   const wasEditing = Boolean(state.editingManualId);
   const entry = { ...result.value, id: state.editingManualId || crypto.randomUUID() };
@@ -371,4 +385,4 @@ $('#export-merchants').addEventListener('click', exportMerchantBackup);
 $('#import-merchants').addEventListener('change', event => importMerchantBackup(event.target.files[0]));
 document.querySelectorAll('tbody').forEach(tbody => new MutationObserver(() => labelTableCells(tbody)).observe(tbody, { childList: true }));
 if (prefersShareSheet()) document.querySelectorAll('#export-button, #export-manual').forEach(button => { button.textContent = '↗ Share import.tsv'; });
-populateCategoryControls(); readMappings(); renderManualEntries(); showImportLanding();
+populateCategoryControls(); els.manualDate.value = todayIsoDate(); readMappings(); renderManualEntries(); showImportLanding();

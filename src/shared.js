@@ -101,7 +101,7 @@ export function exportTsv(rows, fileName = 'import.tsv') {
 export function validateManualTransaction(input) {
   const date = toExportDate(input.date);
   const amount = parseUserAmount(input.amount);
-  if (!date) return { error: 'Enter a valid date in DD/MM/YYYY format.' };
+  if (!date) return { error: 'Choose a valid date.' };
   if (!isAllowedCategory(input.category)) return { error: 'Choose a category.' };
   if (!Number.isFinite(amount) || amount <= 0) return { error: 'Enter an amount greater than zero.' };
   if (!input.note.trim()) return { error: 'Enter a note.' };
