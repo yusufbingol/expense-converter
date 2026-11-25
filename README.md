@@ -26,3 +26,10 @@ Classification and manual entries share one predefined category list: Arbitrary,
 The parser recognizes Enpara rows with a date, description and Turkish-Lira amount. It includes only positive, non-installment transactions. It omits payments, negative credits/refunds, installments, and rows that do not resemble statement transactions.
 
 The reference statement PDF and `import.xlsx` mentioned in the brief were not included in this workspace, so the parser was validated against the supplied row examples. If a real statement exposes a different text layout, adjust `parseTransactionLine` in `src/main.js` while keeping the parsing, filtering, mapping, and TSV stages separate.
+
+## iPhone / GitHub Pages
+
+- The app is deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `main` (Settings → Pages → Source: GitHub Actions).
+- On iPhone, open the Pages URL in Safari and use Share → Add to Home Screen.
+- On phones, Export opens the share sheet with `import.tsv` so it can be sent straight to Money Manager. Desktops still download the file.
+- Saved merchants live in each browser's `localStorage`. Use Saved merchants → Export backup on one device and Import backup on the other to copy them.

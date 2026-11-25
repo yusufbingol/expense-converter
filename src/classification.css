@@ -1,9 +1,15 @@
 .classification-transactions{margin:-8px 0 25px;padding:16px 17px;border:1px solid #dce5dc;border-radius:9px;background:#f8fbf7}
 .classification-transaction-list{display:grid;gap:7px;margin-top:11px}
-.classification-transaction{display:flex;justify-content:space-between;gap:16px;align-items:center;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#48645b}
+.classification-transaction{display:flex;gap:8px;align-items:center;border:1px solid transparent;border-radius:7px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#48645b}
+.classification-transaction.selected{border-color:var(--ink);background:#eef5ee}
+.transaction-select{flex:1;display:flex;justify-content:space-between;gap:16px;align-items:center;border:0;background:transparent;color:inherit;font:inherit;padding:6px 8px;border-radius:6px;text-align:left}
+.transaction-select:hover{background:#eef3ec}
+.transaction-skip{border:0;background:#fff1ec;color:#bd4f3b;border-radius:5px;width:24px;height:24px;font-size:17px;line-height:1;flex:none}
+.transaction-skip:hover{background:#ffe2d8}
+.selection-note{margin:10px 0 0;font:11px 'DM Mono',monospace;color:var(--ink);font-weight:600}
 .classification-transaction .transaction-amount{font-weight:700;color:var(--ink);white-space:nowrap}
 .optional-label{font-weight:500;color:#809087;margin-left:3px}
-.classification-secondary-actions{display:flex;gap:9px;align-items:center}
+.classification-secondary-actions,.classification-primary-actions{display:flex;gap:9px;align-items:center}
 .button.skip{background:#fff8ee;border-color:#ebc276;color:#855516}
 .button.skip:hover{background:#fff1d7}
-@media(max-width:480px){.form-actions,.classification-secondary-actions{align-items:stretch;flex-direction:column}.form-actions .button{width:100%}.classification-transaction{align-items:flex-start;flex-direction:column;gap:3px}}
+@media(max-width:480px){.form-actions,.classification-secondary-actions,.classification-primary-actions{align-items:stretch;flex-direction:column}.form-actions .button{width:100%}.transaction-select{align-items:flex-start;flex-direction:column;gap:3px}}

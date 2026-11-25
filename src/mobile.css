@@ -1,0 +1,45 @@
+/* Phone layout, iOS safe areas and home-screen (standalone) tweaks. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{-webkit-tap-highlight-color:rgba(23,61,55,.12)}
+.merchant-tools{display:flex;gap:9px;flex-wrap:wrap}
+.file-button{position:relative;overflow:hidden;cursor:pointer;display:inline-flex;align-items:center}
+.file-button input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
+
+@media(max-width:800px){
+  .app-shell{flex-direction:column}
+  .sidebar{flex:none;width:100%}
+  .sidebar{padding-top:calc(15px + env(safe-area-inset-top));padding-left:calc(18px + env(safe-area-inset-left));padding-right:calc(18px + env(safe-area-inset-right));position:sticky;top:0;z-index:10}
+  .view{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+  .toast{bottom:calc(24px + env(safe-area-inset-bottom));max-width:calc(100% - 32px)}
+  .button,.nav-button{min-height:44px;touch-action:manipulation}
+  /* iOS zooms into inputs below 16px. */
+  input,select,textarea,.form-grid input,.manual-form input,.manual-form select,.merchant-toolbar input,.mapping-name,.mapping-category{font-size:16px}
+}
+
+@media(max-width:600px){
+  .sidebar{flex-wrap:wrap;gap:10px}
+  .sidebar nav{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .nav-button{justify-content:center;text-align:center;font-size:12px;line-height:1.2;padding:8px 4px}
+  .topbar{display:none}
+  .view{padding-top:24px}
+  .merchant-tools{display:grid;grid-template-columns:1fr 1fr}
+  .merchant-tools .button{justify-content:center;width:100%}
+  .merchant-tools #clear-all{grid-column:1/-1}
+
+  /* Tables become stacked cards. */
+  .table-wrap{border:0;background:transparent;overflow:visible;max-height:none!important}
+  .table-wrap table,.table-wrap tbody,.table-wrap tr,.table-wrap td{display:block;width:100%}
+  .table-wrap thead{display:none}
+  .table-wrap tr{background:#fff;border:1px solid var(--line);border-radius:11px;padding:6px 14px;margin-bottom:10px}
+  .table-wrap td{border:0;padding:7px 0;display:flex;justify-content:space-between;align-items:center;gap:14px;text-align:right;min-width:0!important;max-width:none!important}
+  .table-wrap td[data-label]::before{content:attr(data-label);font:500 10px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:#718077;text-align:left;flex:none}
+  .table-wrap td:not([data-label]){justify-content:flex-end;border-top:1px solid #eef1ec;margin-top:4px;padding-top:8px}
+  .table-wrap td.description-cell{text-align:right}
+  .table-wrap td input{max-width:62%}
+  .review-edit,.review-delete,.manual-edit,.manual-delete,.save-mapping{padding:10px 12px}
+  .delete-mapping{width:36px;height:36px}
+}
+
+@media(display-mode:standalone){
+  .privacy-note{padding-bottom:env(safe-area-inset-bottom)}
+}

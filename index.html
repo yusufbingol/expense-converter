@@ -2,9 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#173d37" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Expense" />
+    <meta name="format-detection" content="telephone=no" />
     <meta name="description" content="Convert Enpara credit card statements into Money Manager TSV imports." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>Enpara → Money Manager</title>
   </head>
   <body>
@@ -76,6 +84,7 @@
               <section class="classification-transactions" aria-labelledby="transaction-details-title">
                 <div id="transaction-details-title" class="description-label">Transactions in this import</div>
                 <div id="classification-transactions" class="classification-transaction-list"></div>
+                <p id="selection-note" class="selection-note hidden">Selected transaction only · click it again to apply to all</p>
               </section>
               <form id="classification-form">
                 <div class="form-grid">
@@ -83,7 +92,7 @@
                   <label>Category<select id="merchant-category" required><option value="">Choose a category</option></select></label>
                   <datalist id="category-options"></datalist>
                 </div>
-                <div class="form-actions"><div class="classification-secondary-actions"><button id="cancel-import" class="button ghost" type="button">Start over</button><button id="skip-merchant" class="button skip" type="button">Skip this merchant</button><button id="review-from-classification" class="button ghost" type="button">Review eligible</button></div><button class="button primary" type="submit">Save &amp; continue</button></div>
+                <div class="form-actions"><div class="classification-secondary-actions"><button id="cancel-import" class="button ghost" type="button">Start over</button><button id="skip-merchant" class="button skip" type="button">Skip this merchant</button><button id="review-from-classification" class="button ghost" type="button">Review eligible</button></div><div class="classification-primary-actions"><button id="continue-merchant" class="button ghost" type="button" title="Add to this import without saving the merchant">Continue</button><button class="button primary" type="submit">Save &amp; continue</button></div></div>
               </form>
             </div>
           </section>
@@ -134,7 +143,7 @@
 
         <section id="merchants-view" class="view" aria-labelledby="merchants-title">
           <div class="view-heading merchants-heading"><div><h1 id="merchants-title">Saved merchants</h1><p>Descriptions stay exact; edit the friendly name or category whenever you need.</p></div></div>
-          <section class="merchant-toolbar"><input id="merchant-search" type="search" placeholder="Search descriptions, names or categories" aria-label="Search saved merchants" /><button id="clear-all" class="button danger hidden" type="button">Delete all</button></section>
+          <section class="merchant-toolbar"><input id="merchant-search" type="search" placeholder="Search descriptions, names or categories" aria-label="Search saved merchants" /><div class="merchant-tools"><button id="export-merchants" class="button ghost" type="button">Export backup</button><label class="button ghost file-button">Import backup<input id="import-merchants" type="file" accept="application/json,.json" /></label><button id="clear-all" class="button danger hidden" type="button">Delete all</button></div></section>
           <div id="merchants-empty" class="merchant-empty"><span>⌁</span><strong>No merchant mappings yet</strong><p>They will appear here after you classify transactions from a statement.</p></div>
           <div id="merchant-table-wrap" class="table-wrap hidden"><table><thead><tr><th>Description</th><th>Friendly name</th><th>Category</th><th></th></tr></thead><tbody id="merchant-body"></tbody></table></div>
         </section>
@@ -155,6 +164,6 @@
       </form>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>

@@ -1,6 +1,6 @@
 export const CATEGORY_OPTIONS = [
   'Arbitrary', 'Food', 'Family', 'Transport', 'Home Stuff', 'Clothing',
-  'Hobby & Activity', 'Bill', 'Market', 'Health', 'General'
+  'Hobby & Activity', 'Bill', 'Market', 'Health', 'Gift', 'General'
 ];
 
 export function toExportDate(value) {
@@ -58,12 +58,44 @@ export function rowsToTsv(rows) {
   return [header.join('\t'), ...body].join('\r\n');
 }
 
-export function downloadTsv(rows, fileName = 'import.tsv') {
-  const blob = new Blob([rowsToTsv(rows)], { type: 'text/tab-separated-values;charset=utf-8' });
+// Phones/tablets get the native share sheet (e.g. to send import.tsv straight to
+// Money Manager); desktops keep the classic file download.
+export function prefersShareSheet() {
+  return typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+    && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+}
+
+function downloadBlob(blob, fileName) {
   const url = URL.createObjectURL(blob);
   const anchor = Object.assign(document.createElement('a'), { href: url, download: fileName });
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Resolves to 'shared', 'downloaded' or 'cancelled'. Must be called directly from a
+// click handler: navigator.share() needs the user gesture, so nothing is awaited first.
+export async function saveTextFile(text, fileName, mimeType) {
+  if (prefersShareSheet()) {
+    const candidates = [new File([text], fileName, { type: mimeType }), new File([text], fileName, { type: 'text/plain' })];
+    const file = candidates.find(item => !navigator.canShare || navigator.canShare({ files: [item] }));
+    if (file) {
+      try {
+        await navigator.share({ files: [file] });
+        return 'shared';
+      } catch (error) {
+        if (error?.name === 'AbortError') return 'cancelled';
+        // Any other failure (e.g. lost gesture): fall back to a download below.
+      }
+    }
+  }
+  downloadBlob(new Blob([text], { type: `${mimeType};charset=utf-8` }), fileName);
+  return 'downloaded';
+}
+
+export function exportTsv(rows, fileName = 'import.tsv') {
+  return saveTextFile(rowsToTsv(rows), fileName, 'text/tab-separated-values');
 }
 
 export function validateManualTransaction(input) {

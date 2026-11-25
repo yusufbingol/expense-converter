@@ -3,15 +3,17 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import './style.css';
 import './classification.css';
 import './manual.css';
-import { CATEGORY_OPTIONS, downloadTsv, formatUserAmount, isAllowedCategory, makeExportRow, parseUserAmount, toDisplayDate, toExportDate, validateManualTransaction } from './shared.js';
+import './mobile.css';
+import { CATEGORY_OPTIONS, exportTsv as saveTsv, prefersShareSheet, saveTextFile, formatUserAmount, isAllowedCategory, makeExportRow, parseUserAmount, toDisplayDate, toExportDate, validateManualTransaction } from './shared.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const storageKey = 'enpara-money-manager.merchant-mappings.v1';
-const state = { mappings: new Map(), parsed: [], included: [], skipped: { installments: 0, negatives: 0, unrecognized: 0 }, skippedDescriptions: new Set(), unknown: [], unknownIndex: 0, importActive: false, manualEntries: [], editingManualId: null, editingReviewId: null };
+const DEFAULT_CATEGORY = 'Market';
+const state = { mappings: new Map(), sessionMappings: new Map(), selectedTransactionId: null, parsed: [], included: [], skipped: { installments: 0, negatives: 0, unrecognized: 0 }, skippedDescriptions: new Set(), unknown: [], unknownIndex: 0, importActive: false, manualEntries: [], editingManualId: null, editingReviewId: null };
 const $ = (selector) => document.querySelector(selector);
 const els = {
-  input: $('#pdf-input'), dropZone: $('#drop-zone'), upload: $('#upload-panel'), processing: $('#processing-panel'), processingMessage: $('#processing-message'), classification: $('#classification-panel'), review: $('#review-panel'), reviewCopy: $('#review-copy'), empty: $('#empty-state'), importSession: $('#import-session-panel'), importSessionTitle: $('#import-session-title'), importSessionCopy: $('#import-session-copy'), unknownDescription: $('#unknown-description'), unknownProgress: $('#unknown-progress'), classificationCopy: $('#classification-copy'), classificationTransactions: $('#classification-transactions'), classificationForm: $('#classification-form'), merchantName: $('#merchant-name'), merchantCategory: $('#merchant-category'), categoryOptions: $('#category-options'), reviewBody: $('#review-body'), summaryCards: $('#summary-cards'), toast: $('#toast'), merchantCount: $('#merchant-count'), merchantBody: $('#merchant-body'), merchantSearch: $('#merchant-search'), merchantTable: $('#merchant-table-wrap'), merchantsEmpty: $('#merchants-empty'), clearAll: $('#clear-all'), manualForm: $('#manual-form'), manualDate: $('#manual-date'), manualCategory: $('#manual-category'), manualNote: $('#manual-note'), manualAmount: $('#manual-amount'), manualDescription: $('#manual-description'), manualError: $('#manual-error'), manualFormTitle: $('#manual-form-title'), saveManual: $('#save-manual'), cancelManualEdit: $('#cancel-manual-edit'), manualBody: $('#manual-body'), manualTable: $('#manual-table-wrap'), manualEmpty: $('#manual-empty'), manualSummary: $('#manual-summary'), exportManual: $('#export-manual'), reviewEditDialog: $('#review-edit-dialog'), reviewEditForm: $('#review-edit-form'), reviewEditDate: $('#review-edit-date'), reviewEditCategory: $('#review-edit-category'), reviewEditNote: $('#review-edit-note'), reviewEditAmount: $('#review-edit-amount'), reviewEditError: $('#review-edit-error')
+  input: $('#pdf-input'), dropZone: $('#drop-zone'), upload: $('#upload-panel'), processing: $('#processing-panel'), processingMessage: $('#processing-message'), classification: $('#classification-panel'), review: $('#review-panel'), reviewCopy: $('#review-copy'), empty: $('#empty-state'), importSession: $('#import-session-panel'), importSessionTitle: $('#import-session-title'), importSessionCopy: $('#import-session-copy'), unknownDescription: $('#unknown-description'), unknownProgress: $('#unknown-progress'), classificationCopy: $('#classification-copy'), classificationTransactions: $('#classification-transactions'), selectionNote: $('#selection-note'), classificationForm: $('#classification-form'), merchantName: $('#merchant-name'), merchantCategory: $('#merchant-category'), categoryOptions: $('#category-options'), reviewBody: $('#review-body'), summaryCards: $('#summary-cards'), toast: $('#toast'), merchantCount: $('#merchant-count'), merchantBody: $('#merchant-body'), merchantSearch: $('#merchant-search'), merchantTable: $('#merchant-table-wrap'), merchantsEmpty: $('#merchants-empty'), clearAll: $('#clear-all'), manualForm: $('#manual-form'), manualDate: $('#manual-date'), manualCategory: $('#manual-category'), manualNote: $('#manual-note'), manualAmount: $('#manual-amount'), manualDescription: $('#manual-description'), manualError: $('#manual-error'), manualFormTitle: $('#manual-form-title'), saveManual: $('#save-manual'), cancelManualEdit: $('#cancel-manual-edit'), manualBody: $('#manual-body'), manualTable: $('#manual-table-wrap'), manualEmpty: $('#manual-empty'), manualSummary: $('#manual-summary'), exportManual: $('#export-manual'), reviewEditDialog: $('#review-edit-dialog'), reviewEditForm: $('#review-edit-form'), reviewEditDate: $('#review-edit-date'), reviewEditCategory: $('#review-edit-category'), reviewEditNote: $('#review-edit-note'), reviewEditAmount: $('#review-edit-amount'), reviewEditError: $('#review-edit-error')
 };
 
 function readMappings() {
@@ -110,7 +112,7 @@ async function handleFile(file) {
   try {
     const parsed = await extractTransactions(file);
     const filtered = filterTransactions(parsed);
-    state.parsed = parsed; state.included = filtered.included.map(transaction => ({ ...transaction, id: crypto.randomUUID(), override: null })); state.skipped = filtered.skipped; state.skippedDescriptions = new Set(); state.importActive = Boolean(state.included.length);
+    state.parsed = parsed; state.included = filtered.included.map(transaction => ({ ...transaction, id: crypto.randomUUID(), override: null })); state.skipped = filtered.skipped; state.skippedDescriptions = new Set(); state.sessionMappings = new Map(); state.selectedTransactionId = null; state.importActive = Boolean(state.included.length);
     state.unknown = [...new Set(state.included.map(t => t.description))].filter(description => !state.mappings.has(description));
     state.unknownIndex = 0;
     els.processing.classList.add('hidden');
@@ -121,10 +123,15 @@ async function handleFile(file) {
   }
 }
 function resetPanels() { els.classification.classList.add('hidden'); els.review.classList.add('hidden'); els.empty.classList.add('hidden'); els.processing.classList.add('hidden'); }
-function getExportableImportTransactions() { return state.included.filter(transaction => state.mappings.has(transaction.description)); }
-function getPendingImportTransactions() { return state.included.filter(transaction => !state.mappings.has(transaction.description)); }
+// Saved merchants win; session-only mappings (from "Continue") apply to this import only.
+function getMapping(description) { return state.mappings.get(description) || state.sessionMappings.get(description); }
+function hasMapping(description) { return state.mappings.has(description) || state.sessionMappings.has(description); }
+// A transaction classified on its own (row selected in classification) carries its own mapping.
+function isClassified(transaction) { return Boolean(transaction.classified) || hasMapping(transaction.description); }
+function getExportableImportTransactions() { return state.included.filter(isClassified); }
+function getPendingImportTransactions() { return state.included.filter(transaction => !isClassified(transaction)); }
 function makeImportExportRow(transaction) {
-  const mapping = state.mappings.get(transaction.description);
+  const mapping = transaction.classified || getMapping(transaction.description);
   const override = transaction.override || {};
   return makeExportRow({
     date: override.date || toDisplayDate(transaction.date),
@@ -147,19 +154,61 @@ function showClassification() {
   resetPanels(); els.upload.classList.add('hidden'); els.importSession.classList.add('hidden');
   els.classification.classList.remove('hidden');
   const description = state.unknown[state.unknownIndex];
-  const transactions = state.included.filter(transaction => transaction.description === description);
+  const transactions = getCurrentClassificationTransactions();
+  // Every transaction of this merchant was classified one by one or removed with X.
+  if (!transactions.length) { state.selectedTransactionId = null; advanceClassification(); return; }
   els.unknownDescription.textContent = description;
   els.unknownProgress.textContent = `${state.unknownIndex + 1} / ${state.unknown.length}`;
-  els.classificationCopy.textContent = `${transactions.length} transaction${transactions.length === 1 ? '' : 's'} will use this mapping. This exact description has not been saved before.`;
+  renderClassificationTransactions();
+  els.merchantName.value = ''; els.merchantCategory.value = DEFAULT_CATEGORY; state.autoCategory = false; els.merchantName.focus();
+}
+// Friendly names mentioning cigarettes or alcohol default to Arbitrary; reverts to Market if the word is removed.
+function applyAutoCategory() {
+  const matches = /sigara|alkol/.test(els.merchantName.value.toLocaleLowerCase('tr-TR'));
+  if (matches && els.merchantCategory.value !== 'Arbitrary') { els.merchantCategory.value = 'Arbitrary'; state.autoCategory = true; }
+  else if (!matches && state.autoCategory) { if (els.merchantCategory.value === 'Arbitrary') els.merchantCategory.value = DEFAULT_CATEGORY; state.autoCategory = false; }
+}
+function getCurrentClassificationTransactions() {
+  const description = state.unknown[state.unknownIndex];
+  return state.included.filter(transaction => transaction.description === description && !transaction.classified);
+}
+function renderClassificationTransactions() {
+  const transactions = getCurrentClassificationTransactions();
+  if (!transactions.some(transaction => transaction.id === state.selectedTransactionId)) state.selectedTransactionId = null;
+  const selected = transactions.find(transaction => transaction.id === state.selectedTransactionId);
+  els.classificationCopy.textContent = selected
+    ? `Only the selected transaction (${toDisplayDate(selected.date)} · ${formatAmount(selected.amount)}) will be classified. The merchant will not be saved.`
+    : `${transactions.length} transaction${transactions.length === 1 ? '' : 's'} will use this mapping. Click a transaction to classify it on its own.`;
+  els.selectionNote.classList.toggle('hidden', !selected);
   els.classificationTransactions.replaceChildren(...transactions.map(transaction => {
-    const item = document.createElement('div'); item.className = 'classification-transaction';
+    const item = document.createElement('div'); item.className = 'classification-transaction'; item.dataset.id = transaction.id;
+    item.classList.toggle('selected', transaction.id === state.selectedTransactionId);
+    const select = document.createElement('button'); select.type = 'button'; select.className = 'transaction-select'; select.setAttribute('aria-pressed', String(transaction.id === state.selectedTransactionId));
     const date = document.createElement('span'); date.textContent = toDisplayDate(transaction.date);
     const amount = document.createElement('span'); amount.className = 'transaction-amount'; amount.textContent = formatAmount(transaction.amount);
-    item.append(date, amount); return item;
+    select.append(date, amount);
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'transaction-skip'; remove.textContent = '×'; remove.title = 'Skip this transaction'; remove.setAttribute('aria-label', 'Skip this transaction');
+    item.append(select, remove); return item;
   }));
-  els.merchantName.value = ''; els.merchantCategory.value = ''; els.merchantName.focus();
+}
+// Applies a name/category to the selected transaction only. Returns false when no row is selected.
+function classifySelectedTransaction(name, category) {
+  const transaction = getCurrentClassificationTransactions().find(item => item.id === state.selectedTransactionId);
+  if (!transaction) return false;
+  transaction.classified = { description: transaction.description, name, category };
+  state.selectedTransactionId = null;
+  showToast('Transaction classified on its own. Merchant was not saved.');
+  showClassification();
+  return true;
+}
+function skipClassificationTransaction(id) {
+  state.included = state.included.filter(transaction => transaction.id !== id);
+  if (state.selectedTransactionId === id) state.selectedTransactionId = null;
+  showToast('1 transaction skipped for this import.');
+  if (getCurrentClassificationTransactions().length) renderClassificationTransactions(); else showClassification();
 }
 function advanceClassification() {
+  state.selectedTransactionId = null;
   state.unknownIndex++;
   if (state.unknownIndex < state.unknown.length) { showClassification(); return; }
   els.classification.classList.add('hidden'); showReview();
@@ -181,10 +230,49 @@ function showReview() {
 function exportTsv() {
   const rows = getExportableImportTransactions().map(makeImportExportRow);
   if (!rows.length) { showToast('Classify at least one merchant before exporting.'); return; }
-  downloadTsv(rows); showToast(`Downloaded ${rows.length} transactions as import.tsv.`);
+  saveTsv(rows).then(result => reportExport(result, `${rows.length} transactions`));
+}
+function reportExport(result, what) {
+  if (result === 'shared') showToast(`Shared ${what} as import.tsv.`);
+  else if (result === 'downloaded') showToast(`Downloaded ${what} as import.tsv.`);
+}
+function exportMerchantBackup() {
+  const mappings = [...state.mappings.values()];
+  if (!mappings.length) { showToast('There are no saved merchants to export.'); return; }
+  const payload = JSON.stringify({ app: 'enpara-money-manager', version: 1, exportedAt: new Date().toISOString(), mappings }, null, 2);
+  const stamp = new Date().toISOString().slice(0, 10);
+  saveTextFile(payload, `merchants-${stamp}.json`, 'application/json').then(result => {
+    if (result !== 'cancelled') showToast(`${result === 'shared' ? 'Shared' : 'Downloaded'} ${mappings.length} saved merchants.`);
+  });
+}
+async function importMerchantBackup(file) {
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const list = Array.isArray(data) ? data : data?.mappings;
+    if (!Array.isArray(list)) throw new Error('format');
+    const valid = list.filter(x => typeof x?.description === 'string' && x.description && typeof x?.name === 'string' && x.name && typeof x?.category === 'string' && x.category)
+      .map(x => ({ description: x.description, name: x.name, category: x.category }));
+    if (!valid.length) { showToast('No merchants found in that file.'); return; }
+    const added = valid.filter(x => !state.mappings.has(x.description)).length;
+    const changed = valid.filter(x => { const current = state.mappings.get(x.description); return current && (current.name !== x.name || current.category !== x.category); }).length;
+    if (changed && !confirm(`Import ${valid.length} merchants? ${added} new, ${changed} existing will be overwritten.`)) return;
+    valid.forEach(x => state.mappings.set(x.description, x));
+    persistMappings();
+    showToast(`Imported merchants: ${added} new${changed ? `, ${changed} updated` : ''}.`);
+  } catch {
+    showToast('That file is not a valid merchant backup.');
+  } finally {
+    $('#import-merchants').value = '';
+  }
+}
+// Phones show tables as stacked cards; each cell gets its column name as a label.
+function labelTableCells(tbody) {
+  const headers = [...tbody.closest('table').querySelectorAll('thead th')].map(th => th.textContent.trim());
+  tbody.querySelectorAll('tr').forEach(row => [...row.children].forEach((cell, index) => { if (headers[index]) cell.dataset.label = headers[index]; else delete cell.dataset.label; }));
 }
 function openReviewEdit(id) {
-  const transaction = state.included.find(item => item.id === id); if (!transaction || !state.mappings.has(transaction.description)) return;
+  const transaction = state.included.find(item => item.id === id); if (!transaction || !isClassified(transaction)) return;
   const data = makeImportExportRow(transaction);
   state.editingReviewId = id;
   els.reviewEditDate.value = data.date; els.reviewEditCategory.value = data.category; els.reviewEditNote.value = data.note; els.reviewEditAmount.value = formatUserAmount(data.amount);
@@ -211,7 +299,7 @@ function renderMerchantTable() {
   els.merchantTable.classList.toggle('hidden', !mappings.length); els.merchantsEmpty.classList.toggle('hidden', state.mappings.size > 0); els.clearAll.classList.toggle('hidden', !state.mappings.size);
   els.merchantBody.replaceChildren(...mappings.map(mapping => { const row=$('#merchant-row-template').content.firstElementChild.cloneNode(true); row.dataset.description=mapping.description; row.querySelector('.description-cell').textContent=mapping.description; row.querySelector('.mapping-name').value=mapping.name; row.querySelector('.mapping-category').value=mapping.category; return row; }));
 }
-function resetImport() { state.parsed=[];state.included=[];state.skippedDescriptions=new Set();state.unknown=[];state.unknownIndex=0;state.importActive=false;els.input.value=''; showImportLanding(); }
+function resetImport() { state.parsed=[];state.included=[];state.skippedDescriptions=new Set();state.sessionMappings=new Map();state.selectedTransactionId=null;state.unknown=[];state.unknownIndex=0;state.importActive=false;els.input.value=''; showImportLanding(); }
 function resetManualForm() {
   state.editingManualId = null;
   els.manualForm.reset();
@@ -254,7 +342,7 @@ function saveManualEntry() {
 function exportManualEntries() {
   const rows = state.manualEntries.map(entry => makeExportRow(entry));
   if (!rows.length) return;
-  downloadTsv(rows); showToast(`Downloaded ${rows.length} manual transaction${rows.length === 1 ? '' : 's'} as import.tsv.`);
+  saveTsv(rows).then(result => reportExport(result, `${rows.length} manual transaction${rows.length === 1 ? '' : 's'}`));
 }
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.nav-button').forEach(x=>x.classList.toggle('active',x===button)); document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view.id===`${button.dataset.view}-view`)); if (button.dataset.view === 'import') showImportLanding(); }));
@@ -262,10 +350,14 @@ els.input.addEventListener('change', event => handleFile(event.target.files[0]))
 ['dragenter','dragover'].forEach(type=>els.dropZone.addEventListener(type,event=>{event.preventDefault();els.dropZone.classList.add('dragging')}));
 ['dragleave','drop'].forEach(type=>els.dropZone.addEventListener(type,event=>{event.preventDefault();els.dropZone.classList.remove('dragging')}));
 els.dropZone.addEventListener('drop', event=>handleFile(event.dataTransfer.files[0]));
-els.classificationForm.addEventListener('submit', event => { event.preventDefault(); const description=state.unknown[state.unknownIndex],category=els.merchantCategory.value.trim(); if(!category){showToast('A category is required.');return;} const name=els.merchantName.value.trim() || description; state.mappings.set(description,{description,name,category}); persistMappings(); advanceClassification(); });
-$('#skip-merchant').addEventListener('click', () => { const description = state.unknown[state.unknownIndex]; const skippedCount = state.included.filter(transaction => transaction.description === description).length; state.skippedDescriptions.add(description); state.included = state.included.filter(transaction => transaction.description !== description); showToast(`${skippedCount} transaction${skippedCount === 1 ? '' : 's'} skipped for this import.`); advanceClassification(); });
+els.classificationForm.addEventListener('submit', event => { event.preventDefault(); const description=state.unknown[state.unknownIndex],category=els.merchantCategory.value.trim(); if(!category){showToast('A category is required.');return;} const name=els.merchantName.value.trim() || description; if (classifySelectedTransaction(name, category)) return; state.mappings.set(description,{description,name,category}); persistMappings(); advanceClassification(); });
+$('#continue-merchant').addEventListener('click', () => { const description=state.unknown[state.unknownIndex],category=els.merchantCategory.value.trim(); if(!category){showToast('A category is required.');return;} const name=els.merchantName.value.trim() || description; if (classifySelectedTransaction(name, category)) return; state.sessionMappings.set(description,{description,name,category}); showToast('Added to this import only. Merchant was not saved.'); advanceClassification(); });
+$('#skip-merchant').addEventListener('click', () => { const description = state.unknown[state.unknownIndex]; const remaining = new Set(getCurrentClassificationTransactions().map(transaction => transaction.id)); const skippedCount = remaining.size; state.skippedDescriptions.add(description); state.included = state.included.filter(transaction => !remaining.has(transaction.id)); showToast(`${skippedCount} transaction${skippedCount === 1 ? '' : 's'} skipped for this import.`); advanceClassification(); });
 $('#cancel-import').addEventListener('click',resetImport); $('#new-import').addEventListener('click',resetImport); $('#export-button').addEventListener('click',exportTsv); $('#review-from-classification').addEventListener('click',showReview); $('#review-import').addEventListener('click',showReview); $('#resume-import').addEventListener('click', () => getPendingImportTransactions().length ? showClassification() : showReview()); $('#resume-from-review').addEventListener('click', () => { if (getPendingImportTransactions().length) showClassification(); });
 els.merchantSearch.addEventListener('input',renderMerchantTable);
+els.merchantName.addEventListener('input', applyAutoCategory);
+els.merchantCategory.addEventListener('change', () => { state.autoCategory = false; });
+els.classificationTransactions.addEventListener('click', event => { const item = event.target.closest('.classification-transaction'); if (!item) return; if (event.target.closest('.transaction-skip')) { skipClassificationTransaction(item.dataset.id); return; } if (event.target.closest('.transaction-select')) { state.selectedTransactionId = state.selectedTransactionId === item.dataset.id ? null : item.dataset.id; renderClassificationTransactions(); } });
 els.reviewBody.addEventListener('click', event => { const row = event.target.closest('tr'); if (!row) return; if (event.target.closest('.review-edit')) openReviewEdit(row.dataset.id); if (event.target.closest('.review-delete')) deleteReviewTransaction(row.dataset.id); });
 els.reviewEditForm.addEventListener('submit', event => { event.preventDefault(); saveReviewEdit(); });
 $('#close-review-edit').addEventListener('click', closeReviewEdit); $('#cancel-review-edit').addEventListener('click', closeReviewEdit);
@@ -275,4 +367,8 @@ els.manualForm.addEventListener('submit', event => { event.preventDefault(); sav
 els.cancelManualEdit.addEventListener('click', resetManualForm);
 els.manualBody.addEventListener('click', event => { const row = event.target.closest('tr'); if (!row) return; if (event.target.closest('.manual-edit')) editManualEntry(row.dataset.id); if (event.target.closest('.manual-delete')) { state.manualEntries = state.manualEntries.filter(entry => entry.id !== row.dataset.id); if (state.editingManualId === row.dataset.id) resetManualForm(); renderManualEntries(); showToast('Manual transaction deleted.'); } });
 els.exportManual.addEventListener('click', exportManualEntries);
+$('#export-merchants').addEventListener('click', exportMerchantBackup);
+$('#import-merchants').addEventListener('change', event => importMerchantBackup(event.target.files[0]));
+document.querySelectorAll('tbody').forEach(tbody => new MutationObserver(() => labelTableCells(tbody)).observe(tbody, { childList: true }));
+if (prefersShareSheet()) document.querySelectorAll('#export-button, #export-manual').forEach(button => { button.textContent = '↗ Share import.tsv'; });
 populateCategoryControls(); readMappings(); renderManualEntries(); showImportLanding();
